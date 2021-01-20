@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kubefed/pkg/apis/core/typeconfig"
 	fedv1b1 "sigs.k8s.io/kubefed/pkg/apis/core/v1beta1"
 	genericclient "sigs.k8s.io/kubefed/pkg/client/generic"
@@ -481,8 +482,10 @@ func (s *KubeFedSyncController) ensureDeletion(fedResource FederatedResource) ut
 		return util.StatusAllOK
 	}
 
+	opts := util.GetDeleteOptions(obj)
+
 	klog.V(2).Infof("Deleting resources managed by %s %q from member clusters.", kind, key)
-	recheckRequired, err := s.deleteFromClusters(fedResource)
+	recheckRequired, err := s.deleteFromClusters(fedResource, opts...)
 	if err != nil {
 		wrappedErr := errors.Wrapf(err, "failed to delete %s %q", kind, key)
 		runtime.HandleError(wrappedErr)
@@ -513,7 +516,7 @@ func (s *KubeFedSyncController) removeManagedLabel(gvk schema.GroupVersionKind, 
 	return nil
 }
 
-func (s *KubeFedSyncController) deleteFromClusters(fedResource FederatedResource) (bool, error) {
+func (s *KubeFedSyncController) deleteFromClusters(fedResource FederatedResource, opts ...client.DeleteOption) (bool, error) {
 	gvk := fedResource.TargetGVK()
 	qualifiedName := fedResource.TargetName()
 
@@ -542,7 +545,7 @@ func (s *KubeFedSyncController) deleteFromClusters(fedResource FederatedResource
 			// namespace is no longer cached.
 			dispatcher.RemoveManagedLabel(clusterName, clusterObj)
 		} else {
-			dispatcher.Delete(clusterName)
+			dispatcher.Delete(clusterName, opts...)
 		}
 	})
 	if err != nil {
